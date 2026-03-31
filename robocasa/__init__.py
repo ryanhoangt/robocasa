@@ -1009,8 +1009,11 @@ assert (
 import numpy
 
 assert numpy.__version__ in [
-    "2.2.5",
-], "numpy version must be 2.2.5. Please install this version."
+    "1.23.2",
+    "1.23.3",
+    "1.23.5",
+    "1.26.0",
+], "numpy version must be either 1.23.{2,3,5}. Please install one of these versions. 1.26.0 version also support."
 
 import robosuite
 
