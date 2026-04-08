@@ -241,26 +241,32 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
 
 
 class SubtaskContextWrapper(gym.Wrapper):
-    """Appends ground-truth subtask progress context to the language instruction
-    at every step, for studying how much progress context improves GR00T on
-    composite long-horizon tasks.
+    """Tracks ground-truth subtask progress and optionally augments the language
+    instruction at every step.
 
-    The injected string has the form:
+    When augment_language=True (default), the language observation key is
+    overwritten with:
         "{original instruction} [Progress: subtask {n}/{total} — {description}]"
+
+    Regardless of augment_language, the info dict returned by step() always
+    contains:
+        info["subtask_idx"]  — 0-based index of the current subtask
+        info["n_subtasks"]   — total subtask count (excluding terminal sentinel)
 
     Usage (in _create_single_env):
         env = gym.make(...)
-        env = SubtaskContextWrapper(env)
+        env = SubtaskContextWrapper(env, augment_language=use_subtask_context)
         env = VideoRecordingWrapper(env, ...)
         env = MultiStepWrapper(env, ...)
     """
 
     LANG_KEY = "annotation.human.task_description"
 
-    def __init__(self, env: gym.Env):
+    def __init__(self, env: gym.Env, augment_language: bool = True):
         super().__init__(env)
         self._subtasks: Optional[List[SubtaskDef]] = None
         self._base_lang: str = ""
+        self._augment_language = augment_language
 
     def _get_kitchen_env(self):
         """Fully unwrap to the underlying Kitchen task instance."""
@@ -287,7 +293,7 @@ class SubtaskContextWrapper(gym.Wrapper):
         return len(self._subtasks) - 1
 
     def _augment_obs(self, obs: dict) -> dict:
-        if self._subtasks is None:
+        if self._subtasks is None or not self._augment_language:
             return obs
         idx = self._current_subtask_idx()
         total = len(self._subtasks)
@@ -308,4 +314,7 @@ class SubtaskContextWrapper(gym.Wrapper):
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
         obs = self._augment_obs(obs)
+        if self._subtasks is not None:
+            info["subtask_idx"] = self._current_subtask_idx()
+            info["n_subtasks"] = len(self._subtasks) - 1  # exclude terminal sentinel
         return obs, reward, terminated, truncated, info
