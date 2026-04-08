@@ -21,16 +21,24 @@ class SubtaskDef:
 # The final entry always has is_complete = lambda env: True (terminal).
 # ---------------------------------------------------------------------------
 SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
+    # paper: 4 | tracked: 3 (close-drawer after picking undetectable)
     "DeliverStraw": [
         SubtaskDef(
+            "Open the drawer",
+            lambda env: env.drawer.is_open(env),
+        ),
+        SubtaskDef(
             "Pick up the straw from the drawer",
-            lambda env: OU.check_obj_in_receptacle(env, "straw", "glass_cup", th=0.5),
+            lambda env: OU.check_obj_grasped(env, "straw")
+            or OU.check_obj_in_receptacle(env, "straw", "glass_cup", th=0.5),
         ),
         SubtaskDef(
             "Place the straw inside the glass cup on the dining counter",
-            lambda env: True,
+            lambda env: OU.check_obj_in_receptacle(env, "straw", "glass_cup", th=0.5),
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 4 | tracked: 3 (passive wait for lever-pop is undetectable as a separate step)
     "GetToastedBread": [
         SubtaskDef(
             "Push the toaster lever down to start toasting the bread",
@@ -45,9 +53,11 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Place the toasted bread on the plate on the dining counter",
-            lambda env: True,
+            lambda env: OU.check_obj_in_receptacle(env, "obj", "plate"),
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 2 | tracked: 2 (exact match)
     "KettleBoiling": [
         SubtaskDef(
             "Pick up the kettle from the counter and place it on a stove burner",
@@ -55,12 +65,21 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Turn the burner on to start boiling",
-            lambda env: True,
+            lambda env: env.stove.check_obj_location_on_stove(
+                env=env, obj_name="obj", threshold=0.15
+            )
+            is not None,
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 3 | tracked: 3 (exact match)
     "LoadDishwasher": [
         SubtaskDef(
-            "Pick up the dishes from the counter and place them in the dishwasher rack",
+            "Place the first dish into the dishwasher rack",
+            lambda env: env.dishwasher.check_rack_contact(env, "dish0"),
+        ),
+        SubtaskDef(
+            "Place the second dish into the dishwasher rack",
             lambda env: (
                 env.dishwasher.check_rack_contact(env, "dish0")
                 and env.dishwasher.check_rack_contact(env, "dish1")
@@ -68,43 +87,51 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Close the dishwasher door",
-            lambda env: True,
+            lambda env: env.dishwasher.is_closed(env, th=0.05),
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 15 | tracked: 3 (paper counts individual pick+place ops; we track object placements)
     "PackIdenticalLunches": [
         SubtaskDef(
-            "Place one vegetable and one meat into the first tupperware",
+            "Place at least one vegetable into a tupperware",
+            lambda env: any(
+                OU.check_obj_in_receptacle(env, v, t)
+                for v in ["vegetable0", "vegetable1"]
+                for t in ["tupperware0", "tupperware1"]
+            ),
+        ),
+        SubtaskDef(
+            "Place both vegetables into the tupperwares",
             lambda env: (
-                (
-                    any(
-                        OU.check_obj_in_receptacle(env, v, "tupperware0")
-                        for v in ["vegetable0", "vegetable1"]
-                    )
-                    and any(
-                        OU.check_obj_in_receptacle(env, m, "tupperware0")
-                        for m in ["meat0", "meat1"]
-                    )
+                any(
+                    OU.check_obj_in_receptacle(env, "vegetable0", t)
+                    for t in ["tupperware0", "tupperware1"]
                 )
-                or (
-                    any(
-                        OU.check_obj_in_receptacle(env, v, "tupperware1")
-                        for v in ["vegetable0", "vegetable1"]
-                    )
-                    and any(
-                        OU.check_obj_in_receptacle(env, m, "tupperware1")
-                        for m in ["meat0", "meat1"]
-                    )
+                and any(
+                    OU.check_obj_in_receptacle(env, "vegetable1", t)
+                    for t in ["tupperware0", "tupperware1"]
                 )
             ),
         ),
         SubtaskDef(
-            "Place the remaining vegetable and meat into the second tupperware",
-            lambda env: True,
+            "Place at least one meat into a tupperware",
+            lambda env: any(
+                OU.check_obj_in_receptacle(env, m, t)
+                for m in ["meat0", "meat1"]
+                for t in ["tupperware0", "tupperware1"]
+            ),
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 3 | tracked: 3 (exact match)
     "PreSoakPan": [
         SubtaskDef(
-            "Pick the pan and sponge and place them both into the sink",
+            "Place the pan into the sink",
+            lambda env: OU.obj_inside_of(env, "obj1", env.sink, partial_check=False),
+        ),
+        SubtaskDef(
+            "Place the sponge into the sink",
             lambda env: (
                 OU.obj_inside_of(env, "obj1", env.sink, partial_check=False)
                 and OU.obj_inside_of(env, "obj2", env.sink, partial_check=False)
@@ -112,9 +139,11 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Turn on the water faucet",
-            lambda env: True,
+            lambda env: env.sink.get_handle_state(env=env)["water_on"],
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 2 | tracked: 2 (exact match)
     "PrepareCoffee": [
         SubtaskDef(
             "Pick the mug from the cabinet and place it under the coffee machine dispenser",
@@ -124,9 +153,11 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Press the start button on the coffee machine",
-            lambda env: True,
+            lambda env: env.coffee_machine._turned_on,
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 2 | tracked: 2 (exact match)
     "RinseSinkBasin": [
         SubtaskDef(
             "Turn on the sink faucet",
@@ -134,36 +165,44 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Move the spout to rinse all locations (left, center, right) of the sink basin",
-            lambda env: True,
+            lambda env: all(env.washed_loc),
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 2 | tracked: 2 (exact match)
     "ScrubCuttingBoard": [
         SubtaskDef(
             "Pick up the sponge from the counter",
             lambda env: OU.check_obj_grasped(env, "sponge"),
         ),
         SubtaskDef(
-            "Scrub the cutting board by pressing the sponge across it in multiple locations, then release",
-            lambda env: True,
+            "Scrub the cutting board across multiple locations, then release",
+            lambda env: env.board_contact_timer >= 5,
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 3 | tracked: 3 (exact match; split pan-on-stove from pan-on-correct-lit-burner)
     "SearingMeat": [
         SubtaskDef(
-            "Grab the pan from the cabinet and place it on the correct burner on the stove",
+            "Grab the pan from the cabinet and place it on the stove",
+            lambda env: OU.check_obj_fixture_contact(env, "pan", env.stove),
+        ),
+        SubtaskDef(
+            "Position the pan on the correct burner and turn it on",
             lambda env: (
-                env.stove.check_obj_location_on_stove(env, "pan", threshold=0.15)
+                env.stove.check_obj_location_on_stove(
+                    env=env, obj_name="pan", threshold=0.15
+                )
                 == env.knob
             ),
         ),
         SubtaskDef(
-            "Place the meat on the pan",
+            "Place the meat on the pan to start searing",
             lambda env: OU.check_obj_in_receptacle(env, "meat", "pan", th=0.07),
         ),
-        SubtaskDef(
-            "Turn the burner on to start searing",
-            lambda env: True,
-        ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 2 | tracked: 2 (exact match)
     "SetUpCuttingStation": [
         SubtaskDef(
             "Pick up the knife from the drawer and place it on the cutting board",
@@ -171,9 +210,11 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Move the meat from the plate onto the cutting board",
-            lambda env: True,
+            lambda env: OU.check_obj_in_receptacle(env, "meat", "receptacle"),
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 2 | tracked: 2 (exact match)
     "StackBowlsCabinet": [
         SubtaskDef(
             "Stack the smaller bowl on top of the larger bowl",
@@ -184,9 +225,14 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Move the stacked bowls into the open cabinet",
-            lambda env: True,
+            lambda env: (
+                OU.obj_inside_of(env, "bowl1", env.cabinet)
+                and OU.obj_inside_of(env, "bowl2", env.cabinet)
+            ),
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 6 | tracked: 4 (paper counts pick+place separately; pick ops are non-persistent)
     "SteamInMicrowave": [
         SubtaskDef(
             "Pick the vegetable from the sink and place it in the bowl",
@@ -197,26 +243,42 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
             lambda env: OU.obj_inside_of(env, "bowl", env.microwave),
         ),
         SubtaskDef(
-            "Close the microwave door and press the start button",
-            lambda env: True,
+            "Close the microwave door",
+            lambda env: env.microwave.is_closed(env),
         ),
+        SubtaskDef(
+            "Press the start button on the microwave",
+            lambda env: env.microwave.get_state()["turned_on"],
+        ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 4 | tracked: 3 (stirring motion requires time-series detection, not a static state check)
     "StirVegetables": [
         SubtaskDef(
-            "Pick up the vegetables and place them in the pot on the stove",
+            "Pick up the first vegetable and place it in the pot",
+            lambda env: OU.check_obj_in_receptacle(env, "veg1", "pot"),
+        ),
+        SubtaskDef(
+            "Pick up the second vegetable and place it in the pot",
             lambda env: (
                 OU.check_obj_in_receptacle(env, "veg1", "pot")
                 and OU.check_obj_in_receptacle(env, "veg2", "pot")
             ),
         ),
         SubtaskDef(
-            "Retrieve the spatula and use it to stir the vegetables in the pot",
-            lambda env: True,
+            "Retrieve the spatula",
+            lambda env: OU.check_obj_grasped(env, "spatula"),
         ),
+        SubtaskDef("Stir the vegetables in the pot", lambda env: True),
     ],
+    # paper: 5 | tracked: 3 (paper counts individual pick+place ops)
     "StoreLeftoversInBowl": [
         SubtaskDef(
-            "Pick the chicken drumstick and vegetable from their plates and place them in the bowl",
+            "Place the chicken drumstick into the bowl",
+            lambda env: OU.check_obj_in_receptacle(env, "chicken_drumstick", "bowl"),
+        ),
+        SubtaskDef(
+            "Place the vegetable into the bowl",
             lambda env: (
                 OU.check_obj_in_receptacle(env, "chicken_drumstick", "bowl")
                 and OU.check_obj_in_receptacle(env, "vegetable", "bowl")
@@ -224,9 +286,11 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Put the bowl with leftovers into the fridge",
-            lambda env: True,
+            lambda env: OU.check_obj_fixture_contact(env, "bowl", env.fridge),
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
+    # paper: 2 | tracked: 2 (exact match)
     "WashLettuce": [
         SubtaskDef(
             "Turn on the sink faucet",
@@ -234,8 +298,9 @@ SUBTASK_REGISTRY: dict[str, List[SubtaskDef]] = {
         ),
         SubtaskDef(
             "Hold the lettuce under the running water to wash it",
-            lambda env: True,
+            lambda env: env.washed_time >= 25,
         ),
+        SubtaskDef("Done", lambda env: True),
     ],
 }
 
