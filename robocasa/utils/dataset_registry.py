@@ -2953,6 +2953,14 @@ TASK_SET_REGISTRY = dict(
     target50=TARGET_TASKS["atomic_seen"]
     + TARGET_TASKS["composite_seen"]
     + TARGET_TASKS["composite_unseen"],
+    # 5-task composite subset for ablation experiments
+    composite_seen_5task=[
+        "StirVegetables",
+        "PreSoakPan",
+        "LoadDishwasher",
+        "PackIdenticalLunches",
+        "SearingMeat",
+    ],
     # tasks used in lifelong learning datasets
     lifelong_learning_phase1=LIFELONG_LEARNING_TASKS["lifelong_learning_phase1"],
     lifelong_learning_phase2=LIFELONG_LEARNING_TASKS["lifelong_learning_phase2"],
@@ -2992,6 +3000,22 @@ DATASET_SOUP_REGISTRY = dict(
     target_composite_seen_30p=get_ds_soup(
         split="target",
         task_set="composite_seen",
+        source="human",
+        demo_fraction=0.30,
+    ),
+    # target: composite seen 5-task subset
+    target_composite_seen_5task=get_ds_soup(
+        split="target", task_set="composite_seen_5task", source="human"
+    ),
+    target_composite_seen_5task_10p=get_ds_soup(
+        split="target",
+        task_set="composite_seen_5task",
+        source="human",
+        demo_fraction=0.10,
+    ),
+    target_composite_seen_5task_30p=get_ds_soup(
+        split="target",
+        task_set="composite_seen_5task",
         source="human",
         demo_fraction=0.30,
     ),
